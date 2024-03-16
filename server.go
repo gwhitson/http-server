@@ -1,7 +1,6 @@
 package main
 
 import (
-	//"unicode/utf8"
 	"bytes"
 	"fmt"
 	"net"
@@ -26,9 +25,9 @@ func main() {
 
 func handleConnection(conn net.Conn) {
     buffer := make([]byte, 1024)
-    length, _ := conn.Read(buffer)
+    conn.Read(buffer)
 
-    t, r, _ := getRequest(buffer, length)
+    t, r, _ := getRequest(buffer)
     t, r = bytes.Trim(t, "\x00"), bytes.Trim(r, "\x00")
 
 
@@ -42,12 +41,20 @@ func handleConnection(conn net.Conn) {
         res = "." + res
     }
 
+    resLen := len(res)
+    contType := "text/html"
+    if res[resLen - 4 : resLen] == ".css" {
+        contType = "text/css"
+    }
+
+    fmt.Print(res)
+
     switch rtype {
     case "GET":
         fmt.Println("serving request")
-        dat, err := os.ReadFile(res)
+        dat, err := os.ReadFile("site/" + res)
         check(err)
-        res := "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nhtdocs\r\n"
+        res := "HTTP/1.1 200 OK\r\nContent-Type:" + contType + "\r\nhtdocs\r\n"
         res += string(dat)
         conn.Write([]byte(res))
     default:
@@ -61,7 +68,7 @@ func printBytes(buffer []byte) {
     fmt.Printf("%s", buffer[:])
 }
 
-func getRequest(buffer []byte, length int) ([]byte, []byte, []byte) {
+func getRequest(buffer []byte) ([]byte, []byte, []byte) {
     rtype := make([]byte, 16)
     res := make([]byte, 32)
     rhttp := make([]byte, 16)
