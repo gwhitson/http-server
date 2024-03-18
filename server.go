@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
     "os"
+	"errors"
 )
 
 func main() {
@@ -27,39 +28,42 @@ func handleConnection(conn net.Conn) {
     buffer := make([]byte, 1024)
     conn.Read(buffer)
 
-    t, r, _ := getRequest(buffer)
-    t, r = bytes.Trim(t, "\x00"), bytes.Trim(r, "\x00")
-
-
-    rtype := string(t)
-    res := string(r)
-
-    if res[len(res) - 1] == '/' {
-        res += "index.html"
-    }
-    if res[0] == '/' {
-        res = "." + res
-    }
-
-    resLen := len(res)
-    contType := "text/html"
-    if res[resLen - 4 : resLen] == ".css" {
-        contType = "text/css"
-    }
-
-    fmt.Print(res)
-
-    switch rtype {
-    case "GET":
-        fmt.Println("serving request")
-        dat, err := os.ReadFile("site/" + res)
-        check(err)
-        res := "HTTP/1.1 200 OK\r\nContent-Type:" + contType + "\r\nhtdocs\r\n"
-        res += string(dat)
-        conn.Write([]byte(res))
-    default:
-        conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
-    }
+	printBytes(buffer)
+	if string(bytes.Trim(buffer,"\x00")) != "" {
+		t, r, _, _ := getRequest(buffer)
+		t, r = bytes.Trim(t, "\x00"), bytes.Trim(r, "\x00")
+	
+	
+		rtype := string(t)
+		res := string(r)
+	
+		if res[len(res) - 1] == '/' {
+			res += "index.html"
+		}
+		if res[0] == '/' {
+			res = "." + res
+		}
+	
+		resLen := len(res)
+		contType := "text/html"
+		if res[resLen - 4 : resLen] == ".css" {
+			contType = "text/css"
+		}
+	
+		fmt.Print(res)
+	
+		switch rtype {
+		case "GET":
+			fmt.Println("serving request")
+			dat, err := os.ReadFile("site/" + res)
+			check(err)
+			res := "HTTP/1.1 200 OK\r\nContent-Type:" + contType + "\r\nhtdocs\r\n"
+			res += string(dat)
+			conn.Write([]byte(res))
+		default:
+			conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+		}
+	}
 
     defer conn.Close()
 }
@@ -68,12 +72,18 @@ func printBytes(buffer []byte) {
     fmt.Printf("%s", buffer[:])
 }
 
-func getRequest(buffer []byte) ([]byte, []byte, []byte) {
+func getRequest(buffer []byte) ([]byte, []byte, []byte, error) {
     rtype := make([]byte, 16)
     res := make([]byte, 32)
     rhttp := make([]byte, 16)
+    empty := make([]byte, 1024)
     ind := 0
     i := buffer[ind]
+	
+	if string(buffer) == string(empty) {
+		fmt.Print("dont reach here")
+		return rtype, res, rhttp, errors.New("Empty buffer")
+	}
 
     // get type of request
     for i != byte(' ') {
@@ -99,7 +109,7 @@ func getRequest(buffer []byte) ([]byte, []byte, []byte) {
         ind = ind + 1
         i = buffer[ind]
     }
-    return rtype, res, rhttp
+    return rtype, res, rhttp, nil
 }
 
 func check(e error) {
